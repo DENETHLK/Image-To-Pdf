@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image to PDF</title>
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #212121;
+      color: #fff;
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 320px;
+      background: #1f1f1f;
+      padding: 30px 25px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      box-shadow: 4px 0 12px rgba(0, 0, 0, 0.7);
+    }
+
+    .sidebar h2 {
+      font-weight: 700;
+      font-size: 1.75rem;
+      margin-bottom: 15px;
+      color: #fff;
+    }
+
+    label {
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 5px;
+      display: block;
+      color: #ccc;
+    }
+
+    input[type='file'],
+    select {
+      background: #2b2b2b;
+      color: #fff;
+      border: none;
+      padding: 12px 15px;
+      border-radius: 8px;
+      font-size: 1rem;
+      box-shadow: inset 0 0 5px #0d6efd33;
+      transition: box-shadow 0.3s ease;
+    }
+
+    input[type='file']:focus,
+    select:focus {
+      outline: none;
+      box-shadow: inset 0 0 8px #0d6efdcc;
+    }
+
+    .drop-zone {
+      border: 2px dashed #444;
+      padding: 45px;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      color: #bbb;
+      transition: border-color 0.3s ease, color 0.3s ease;
+      user-select: none;
+      font-weight: 600;
+    }
+
+    .drop-zone:hover {
+      border-color: #0d6efd;
+      color: #0d6efd;
+    }
+
+    .convert-btn {
+      background: #0d6efd;
+      border: none;
+      padding: 15px;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 6px 10px #0d6efd66;
+      transition: background-color 0.3s ease;
+      margin-top: 10px;
+    }
+
+    .convert-btn:hover {
+      background: #0853c2;
+    }
+
+    .progress {
+      width: 100%;
+      height: 10px;
+      background: #333;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 15px;
+      box-shadow: inset 0 1px 3px #0d6efd66;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: #0d6efd;
+      width: 0%;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 10px #0d6efdaa;
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 30px;
+      text-align: center;
+      overflow-y: auto;
+      background: #171717;
+    }
+
+    #status {
+      font-size: 1.2rem;
+      color: #ddd;
+      max-width: 600px;
+      margin-bottom: 20px;
+      font-weight: 600;
+    }
+
+    .preview-list {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      justify-content: center;
+      max-width: 860px;
+      user-select: none;
+    }
+
+    .preview-item {
+      position: relative;
+      border: 2px solid #2f2f2f;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #121212;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px;
+      box-shadow: 0 0 6px #0d6efd44;
+      transition: box-shadow 0.3s ease;
+      cursor: grab;
+      width: 160px;
+      user-select: none;
+    }
+
+    .preview-item:active {
+      cursor: grabbing;
+    }
+
+    .preview-item.dragging {
+      opacity: 0.5;
+      box-shadow: 0 0 20px #0d6efdaa;
+      cursor: grabbing;
+      border-color: #0d6efd;
+    }
+
+    .preview-item.dragover {
+      border-color: #0d6efd;
+    }
+
+    .preview-item img {
+      display: block;
+      object-fit: contain;
+      border-radius: 6px;
+      pointer-events: none;
+      max-width: 140px;
+      max-height: 180px;
+    }
+
+    .page-number {
+      color: #0d6efd;
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 6px;
+      user-select: none;
+    }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: #0d6efd;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 18px;
+      margin-top: 8px;
+      transition: color 0.3s ease;
+      user-select: none;
+    }
+
+    .remove-btn:hover {
+      color: #083e8c;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h2>🖼️ Image to PDF</h2>
+    <input type="file" id="fileInput" multiple accept="image/*" />
+    <div class="drop-zone" id="dropZone">📂 Drag & Drop Images Here</div>
+
+    <label>Page Orientation</label>
+    <select id="orientation">
+      <option value="p">Portrait</option>
+      <option value="l">Landscape</option>
+    </select>
+
+    <label>Page Size</label>
+    <select id="pageSize">
+      <option value="fit">Fit to Image</option>
+      <option value="a4">A4</option>
+      <option value="letter">US Letter</option>
+    </select>
+
+    <label>Margins</label>
+    <select id="margin">
+      <option value="0">No Margin</option>
+      <option value="20">Small</option>
+      <option value="40">Large</option>
+    </select>
+
+    <button class="convert-btn" id="convertBtn">➕ Convert to PDF</button>
+
+    <div class="progress">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <p id="status">No images selected.</p>
+    <div class="preview-list" id="previewList"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    const { jsPDF } = window.jspdf;
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const convertBtn = document.getElementById('convertBtn');
+    const status = document.getElementById('status');
+    const progressBar = document.getElementById('progressBar');
+    const previewList = document.getElementById('previewList');
+    const orientationSelect = document.getElementById('orientation');
+    const pageSizeSelect = document.getElementById('pageSize');
+    const marginSelect = document.getElementById('margin');
+
+    let files = [];
+
+    const pageDimensions = {
+      a4: { w: 595, h: 842 },
+      letter: { w: 612, h: 792 },
+    };
+
+    let dragSrcIndex = null;
+
+    function updatePreview() {
+      const orientation = orientationSelect.value;
+      const pageSize = pageSizeSelect.value;
+      const margin = parseInt(marginSelect.value);
+
+      previewList.innerHTML = '';
+
+      files.forEach((file, index) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const item = document.createElement('div');
+          item.className = 'preview-item';
+          item.setAttribute('draggable', 'true');
+          item.dataset.index = index;
+
+          // Page number
+          const pageNum = document.createElement('div');
+          pageNum.className = 'page-number';
+          pageNum.textContent = `Page ${index + 1}`;
+          item.appendChild(pageNum);
+
+          const img = document.createElement('img');
+          img.src = reader.result;
+
+          let width = 150, height = 200;
+          if (pageSize !== 'fit') {
+            let base = pageDimensions[pageSize] || pageDimensions.a4;
+            let w = orientation === 'p' ? base.w : base.h;
+            let h = orientation === 'p' ? base.h : base.w;
+            w -= margin * 2;
+            h -= margin * 2;
+            const ratio = Math.min(width / w, height / h);
+            width = w * ratio * 0.4;
+            height = h * ratio * 0.4;
+          }
+
+          img.style.width = width + 'px';
+          img.style.height = height + 'px';
+          img.alt = "Preview";
+
+          item.appendChild(img);
+
+          // Remove button
+          const removeBtn = document.createElement('button');
+          removeBtn.className = 'remove-btn';
+          removeBtn.title = 'Remove image';
+          removeBtn.textContent = '🗑️';
+          removeBtn.onclick = () => {
+            removeImage(index);
+          };
+          item.appendChild(removeBtn);
+
+          // Add drag event handlers
+          addDragAndDropHandlers(item);
+
+          previewList.appendChild(item);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      status.textContent = `${files.length} image(s) ready.`;
+    }
+
+    function removeImage(index) {
+      files.splice(index, 1);
+      updatePreview();
+    }
+
+    function addDragAndDropHandlers(item) {
+      item.addEventListener('dragstart', dragStart);
+      item.addEventListener('dragover', dragOver);
+      item.addEventListener('drop', drop);
+      item.addEventListener('dragend', dragEnd);
+    }
+
+    function dragStart(e) {
+      dragSrcIndex = Number(this.dataset.index);
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData('text/plain', '');
+    }
+
+    function dragEnd(e) {
+      dragSrcIndex = null;
+      this.classList.remove('dragging');
+    }
+
+    function dragOver(e) {
+      e.preventDefault(); // Allow drop
+      this.classList.add('dragover');
+    }
+
+    function drop(e) {
+      e.preventDefault();
+      this.classList.remove('dragover');
+      const dragTargetIndex = Number(this.dataset.index);
+      if (dragSrcIndex === null || dragSrcIndex === dragTargetIndex) return;
+
+      // Reorder files array
+      const draggedFile = files[dragSrcIndex];
+      files.splice(dragSrcIndex, 1);
+      files.splice(dragTargetIndex, 0, draggedFile);
+
+      updatePreview();
+    }
+
+    function clearFiles() {
+      files = [];
+      previewList.innerHTML = '';
+      status.textContent = 'No images selected.';
+      progressBar.style.width = '0%';
+    }
+
+    fileInput.addEventListener('change', (e) => {
+      clearFiles();
+      files = [...e.target.files];
+      updatePreview();
+    });
+
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#0d6efd';
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.style.borderColor = '#444';
+    });
+
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#444';
+      clearFiles();
+      files = [...e.dataTransfer.files];
+      updatePreview();
+    });
+
+    // HERE: add listeners to update preview on selection change
+    orientationSelect.addEventListener('change', updatePreview);
+    pageSizeSelect.addEventListener('change', updatePreview);
+    marginSelect.addEventListener('change', updatePreview);
+
+    convertBtn.addEventListener('click', async () => {
+      if (files.length === 0) return alert('Please select images.');
+
+      const orientation = orientationSelect.value;
+      const pageSize = pageSizeSelect.value;
+      const margin = parseInt(marginSelect.value);
+
+      let pdf;
+      if (pageSize === 'fit') {
+        pdf = new jsPDF({ orientation, unit: 'pt' });
+      } else {
+        pdf = new jsPDF({ orientation, unit: 'pt', format: pageSize });
+      }
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      for (let i = 0; i < files.length; i++) {
+        const imgData = await toDataURL(files[i]);
+        const img = new Image();
+        img.src = imgData;
+
+        await new Promise(r => (img.onload = r));
+
+        let w = img.width;
+        let h = img.height;
+        let x = 0,
+          y = 0;
+
+        if (pageSize !== 'fit') {
+          const scale = Math.min((pageWidth - margin * 2) / w, (pageHeight - margin * 2) / h);
+          w *= scale;
+          h *= scale;
+          x = (pageWidth - w) / 2;
+          y = (pageHeight - h) / 2;
+        } else {
+          pdf.setPage(i + 1);
+        }
+
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', x, y, w, h);
+        progressBar.style.width = `${((i + 1) / files.length) * 100}%`;
+      }
+
+      pdf.save('converted.pdf');
+      progressBar.style.width = '100%';
+    });
+
+    function toDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+  </script>
+</body>
+</html>
